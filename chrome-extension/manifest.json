@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "TrustHire — Job Fraud Detector",
+  "version": "1.0.0",
+  "description": "Automatically scans job listings on LinkedIn, Naukri, Indeed and shows a trust score badge",
+  "permissions": ["activeTab", "storage", "scripting"],
+  "host_permissions": [
+    "https://*.linkedin.com/*",
+    "https://*.naukri.com/*",
+    "https://*.indeed.com/*",
+    "https://*.internshala.com/*",
+    "https://*.glassdoor.com/*",
+    "http://localhost:8000/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.linkedin.com/jobs/*",
+        "*://*.naukri.com/*",
+        "*://*.indeed.com/*",
+        "*://*.internshala.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": { "service_worker": "background.js" },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" }
+  },
+  "icons": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" }
+}

@@ -1,0 +1,39 @@
+# Virtual environments
+venv/
+ENV/
+env/
+.env
+
+# Python caching
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Pytest and testing
+.pytest_cache/
+.coverage
+htmlcov/
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+
+# Databases & local configs
+*.db
+*.sqlite3
+backend_debug.log
+backend_debug_v2.log
+debug_result.json
+
+# Large datasets & ML models (auto-generated/downloaded by setup.sh)
+data/
+models/
+
+# Node.js dependencies & builds
+node_modules/
+dist/
+.eslintcache
+
+# OS generated files
+.DS_Store
+Thumbs.db

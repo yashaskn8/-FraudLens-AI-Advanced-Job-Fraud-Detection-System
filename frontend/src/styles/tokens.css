@@ -1,0 +1,113 @@
+/* frontend/src/styles/tokens.css */
+/* All design tokens for TrustHire. Referenced by every component. */
+
+:root {
+  /* ── Brand ──────────────────────────────────────────────────────────── */
+  --brand-400: #818cf8;
+  --brand-500: #6366f1;
+  --brand-600: #4f46e5;
+  --brand-700: #4338ca;
+  --brand-900: #1e1b4b;
+
+  /* ── Surface hierarchy ──────────────────────────────────────────────── */
+  --surface-base: #08080f;
+  --surface-1:    #0f0f1a;
+  --surface-2:    #141422;
+  --surface-3:    #1a1a2e;
+  --surface-4:    #1f1f38;
+
+  /* ── Borders ─────────────────────────────────────────────────────────── */
+  --border-subtle:  rgba(255,255,255,0.05);
+  --border-default: rgba(255,255,255,0.09);
+  --border-strong:  rgba(255,255,255,0.16);
+  --border-brand:   rgba(99,102,241,0.45);
+
+  /* ── Text ────────────────────────────────────────────────────────────── */
+  --text-primary:   #f1f0ff;
+  --text-secondary: #a09fc0;
+  --text-tertiary:  #6b6a8a;
+  --text-disabled:  #3d3c58;
+  --text-brand:     #818cf8;
+
+  /* ── Verdict colours ─────────────────────────────────────────────────── */
+  --safe-500:           #22c55e;
+  --safe-400:           #4ade80;
+  --safe-bg:            rgba(34,197,94,0.09);
+  --safe-border:        rgba(34,197,94,0.22);
+
+  --suspicious-500:     #eab308;
+  --suspicious-400:     #facc15;
+  --suspicious-bg:      rgba(234,179,8,0.09);
+  --suspicious-border:  rgba(234,179,8,0.22);
+
+  --fraud-500:          #f97316;
+  --fraud-400:          #fb923c;
+  --fraud-bg:           rgba(249,115,22,0.09);
+  --fraud-border:       rgba(249,115,22,0.22);
+
+  --critical-500:       #ef4444;
+  --critical-400:       #f87171;
+  --critical-bg:        rgba(239,68,68,0.09);
+  --critical-border:    rgba(239,68,68,0.22);
+
+  /* ── Typography ──────────────────────────────────────────────────────── */
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --font-body:    "Inter", system-ui, sans-serif;
+  --font-mono:    "DM Mono", "Fira Code", monospace;
+
+  --text-xs:   0.6875rem;
+  --text-sm:   0.8125rem;
+  --text-base: 0.9375rem;
+  --text-lg:   1.0625rem;
+  --text-xl:   1.25rem;
+  --text-2xl:  1.5rem;
+  --text-3xl:  1.875rem;
+  --text-4xl:  2.25rem;
+  --text-5xl:  3rem;
+
+  --leading-tight:   1.2;
+  --leading-normal:  1.55;
+  --leading-relaxed: 1.75;
+
+  /* ── Spacing ─────────────────────────────────────────────────────────── */
+  --space-1:  0.25rem;
+  --space-2:  0.5rem;
+  --space-3:  0.75rem;
+  --space-4:  1rem;
+  --space-5:  1.25rem;
+  --space-6:  1.5rem;
+  --space-8:  2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* ── Border radius ───────────────────────────────────────────────────── */
+  --radius-sm:   4px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-xl:   16px;
+  --radius-2xl:  20px;
+  --radius-3xl:  28px;
+  --radius-full: 9999px;
+
+  /* ── Shadows ─────────────────────────────────────────────────────────── */
+  --shadow-sm:    0 1px 2px rgba(0,0,0,0.5);
+  --shadow-md:    0 4px 16px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.35);
+  --shadow-lg:    0 8px 32px rgba(0,0,0,0.65), 0 2px 8px rgba(0,0,0,0.45);
+  --shadow-brand: 0 0 0 1px var(--border-brand), 0 4px 24px rgba(99,102,241,0.18);
+  --shadow-inset: inset 0 1px 0 rgba(255,255,255,0.06);
+  --shadow-glow-safe:    0 0 20px rgba(34,197,94,0.28);
+  --shadow-glow-brand:   0 0 30px rgba(99,102,241,0.22);
+
+  /* ── Animation ───────────────────────────────────────────────────────── */
+  --ease-out-expo:  cubic-bezier(0.16,1,0.3,1);
+  --ease-out-quart: cubic-bezier(0.25,1,0.5,1);
+  --ease-spring:    cubic-bezier(0.34,1.56,0.64,1);
+  --ease-in-out:    cubic-bezier(0.4,0,0.2,1);
+
+  --duration-fast:    120ms;
+  --duration-normal:  220ms;
+  --duration-slow:    380ms;
+  --duration-slower:  600ms;
+  --duration-slowest: 1000ms;
+}

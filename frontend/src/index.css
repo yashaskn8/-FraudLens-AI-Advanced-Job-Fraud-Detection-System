@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* MUST be imported AFTER tailwind directives */
+@import "./styles/tokens.css";
+
+/* ── Reset ────────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* ── Base — applies the token system globally ──────────────────────────── */
+body {
+  font-family: var(--font-body);           /* Inter */
+  font-size: var(--text-base);             /* 15px */
+  line-height: var(--leading-normal);      /* 1.55 */
+  color: var(--text-primary);              /* #f1f0ff */
+  background-color: var(--surface-base);   /* #08080f */
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);        /* Space Grotesk */
+  line-height: var(--leading-tight);       /* 1.2 */
+  letter-spacing: -0.025em;
+}
+
+code, kbd, pre, .mono {
+  font-family: var(--font-mono);           /* DM Mono */
+}
+
+/* ── Selection ────────────────────────────────────────────────────────── */
+::selection {
+  background: rgba(99, 102, 241, 0.30);
+  color: var(--text-primary);
+}
+
+/* ── Scrollbar ────────────────────────────────────────────────────────── */
+::-webkit-scrollbar              { width: 5px; height: 5px; }
+::-webkit-scrollbar-track        { background: var(--surface-1); }
+::-webkit-scrollbar-thumb        { background: var(--surface-4); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover  { background: var(--border-strong); }
+
+/* Phase 6 Ultra Animations */
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes aurora-shift {
+  0% { transform: scale(1) translate(0px, 0px) rotate(0deg); }
+  33% { transform: scale(1.1) translate(20px, -20px) rotate(2deg); }
+  66% { transform: scale(0.95) translate(-10px, 15px) rotate(-1deg); }
+  100% { transform: scale(1) translate(0px, 0px) rotate(0deg); }
+}
+
+.animate-aurora {
+  animation: aurora-shift 12s ease-in-out infinite alternate;
+}
+
+@keyframes terminal-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.terminal-cursor {
+  display: inline-block;
+  width: 8px;
+  height: 1.2em;
+  background-color: var(--brand-400);
+  vertical-align: text-bottom;
+  animation: terminal-blink 1s step-end infinite;
+}
+
+/* ── Focus ────────────────────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--brand-500);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Input / textarea placeholder ────────────────────────────────────── */
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-disabled);
+  font-family: var(--font-body);
+}

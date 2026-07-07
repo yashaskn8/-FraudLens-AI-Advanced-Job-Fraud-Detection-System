@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TrustHire</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="popup-container">
+    <div class="header">
+      <div class="logo">
+        <span class="shield">🛡</span>
+        <span class="brand">Trust<span class="accent">Hire</span></span>
+      </div>
+      <span class="version">v1.0</span>
+    </div>
+
+    <div class="scan-section">
+      <label for="scan-url">Quick Scan</label>
+      <div class="input-row">
+        <input type="text" id="scan-url" placeholder="Paste job URL here..." />
+        <button id="scan-btn" class="scan-btn">Scan</button>
+      </div>
+    </div>
+
+    <div id="result" class="result hidden">
+      <div class="score-row">
+        <span class="score-label">Trust Score</span>
+        <span id="score-value" class="score-value">--</span>
+      </div>
+      <div id="verdict-badge" class="verdict-badge">--</div>
+      <div id="flags-list" class="flags-list"></div>
+      <a id="full-report-link" href="#" target="_blank" class="full-report">View Full Report →</a>
+    </div>
+
+    <div id="loading" class="loading hidden">
+      <div class="spinner"></div>
+      <span>Scanning...</span>
+    </div>
+
+    <div id="error" class="error hidden"></div>
+
+    <div class="footer">
+      <a href="http://localhost:5173" target="_blank">Open Dashboard</a>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
