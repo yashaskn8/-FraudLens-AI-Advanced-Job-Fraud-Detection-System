@@ -19,19 +19,18 @@ FraudLens-AI is built around a high-performance **FastAPI backend** that routes 
 
 ---
 
-## 🔍 The 7-Signal Verification Engine
+## 🔍 The Multi-Signal Analysis Pipeline
 
-FraudLens-AI evaluates every job posting through a dynamically-weighted multi-signal analysis pipeline. Signal weights are redistributed automatically when a signal is unavailable or unreliable:
+FraudLens-AI evaluates job postings using a multi-signal analysis pipeline. While the UI and scorer group these into **3 primary Core Engines** for weight redistribution, the system processes **7 distinct signal categories** under the hood:
 
-| # | Signal | Base Weight | Description |
-|---|--------|:-----------:|-------------|
-| **1** | **URL Analysis** | 20% | Domain age, SSL certificate validity, WHOIS records, redirect chain inspection, and real-time lookup against URLHaus, OpenPhish, and PhiUSIIL phishing databases. |
-| **2** | **NLP Classification** | 25% | A DistilBERT model fine-tuned on 18,000+ labelled job postings (EMSCAD dataset) to classify scam vs. legitimate job descriptions with high precision. |
-| **3** | **Company Verification** | 20% | Registry validation against government databases (MCA21 / FTC / UK Companies House), active domain checks, MX record verification, and GSTIN lookup. |
-| **4** | **Duplicate Detection** | 15% | Sentence-BERT embeddings searched against a FAISS vector index of known fraudulent templates to detect reposted scam content. |
-| **5** | **Email Validation** | 10% | Scoring recruiter email addresses based on domain type (generic vs. corporate), SPF/MX record checks, and disposable email detection. |
-| **6** | **Consistency Check** | 5% | Cross-referencing stated salaries, required experience levels, and job titles against statistical distributions to flag implausible combinations. |
-| **7** | **Scam Phrases** | 5% | Dictionary-based scanning across 30+ weighted high-risk phrases and suspicious language patterns in 8 languages. |
+### 1. Primary Core Engines & Scorer Weights
+The primary engines are configured in [`backend/config.py`](backend/config.py) and consolidated in the trust score fusion engine ([`backend/services/trust_scorer.py`](backend/services/trust_scorer.py)):
+
+* **URL Analysis** (Configured base weight: **35%**) — Evaluates domain age, security certificates, registration records, and checks threat feeds.
+* **NLP Classification** (Configured base weight: **30%**) — Classifies text using fine-tuned deep learning models and aggregates duplicate template searches and scam phrase dictionaries.
+* **Company Verification** (Configured base weight: **25%**) — Validates the hiring entity against official registries and analyzes recruiter email domain legitimacy.
+
+*Note: In the scorer settings, the remaining **10%** weight budget is allocated to supplementary signals (Duplicate Detection and Scam Phrases) which are processed inside the NLP Classification pipeline.*
 
 ---
 
@@ -39,25 +38,19 @@ FraudLens-AI evaluates every job posting through a dynamically-weighted multi-si
 
 The trust score is computed by [`backend/services/trust_scorer.py`](backend/services/trust_scorer.py) using a **dynamic weight redistribution** model. The key design principle is distinguishing between **signals with no data** (missing input — excluded neutrally) and **signals with active fraud evidence** (positively detected problems — penalised).
 
-### Configured Signal Weights
-Base weights are configured in [`backend/config.py`](backend/config.py) and are redistributed at runtime:
+### Dynamic Weight Scaling
+When a signal is excluded (e.g. no URL provided or no company details entered), its weight is proportionally redistributed across the remaining reliable signals. For instance, when all three primary engines are active, the base weight budget of `0.90` (35% + 30% + 25%) is scaled up to `1.00`:
 
-| Signal | Configured Weight | Notes |
-|--------|:-----------------:|-------|
-| URL Analysis | **35%** | Most reliable — always available if a URL is provided |
-| NLP Classification | **30%** | Reduced to 85% when only the baseline TF-IDF model is active; 70% when heuristics-only |
-| Company Verification | **25%** | Excluded if no company name or email is provided |
-| Duplicate Detection | **5%** | Supplementary signal via SBERT+FAISS |
-| Scam Phrases | **5%** | Supplementary signal via weighted dictionary |
-
-When a signal is excluded (e.g. no company name provided), its weight is proportionally redistributed across the remaining reliable signals.
+* **URL Analysis:** 0.35 / 0.90 = **38.9%** effective weight
+* **NLP Classification:** 0.30 / 0.90 = **33.3%** effective weight
+* **Company Verification:** 0.25 / 0.90 = **27.8%** effective weight
 
 ### Three Safety Corrections
 After the weighted average is calculated, three evidence-gated corrections are applied:
 
-1. **Score Floor** — If any signal with active fraud evidence scores below the weighted average by more than 20 points, the final score is capped at `lowest_fraud_signal + 20`. This correction is *not* applied when a low score comes from API unavailability or missing data.
+1. **Score Floor** — If any signal with active fraud evidence (i.e. has a verified penalty) scores below the weighted average by more than 20 points, the final score is capped at `lowest_fraud_signal + 20`. This correction is *not* applied when a low score comes from API unavailability or missing data.
 
-2. **Multi-Warning Penalty** — If 2+ signals with active fraud evidence score below 35/100 (danger zone), a 40% penalty is applied (`score × 0.60`). Combinations of 1 danger + 2 warnings apply a 28% penalty. Two warnings without danger signals apply a 18% penalty.
+2. **Multi-Warning Penalty** — If 2+ signals with active fraud evidence score below 35/100 (danger zone), a 40% penalty is applied (`score × 0.60`). Combinations of 1 danger + 2 warnings apply a 28% penalty. Two warnings without danger signals apply an 18% penalty.
 
 3. **Red Flag Hard Cap** — If 2 or more high-severity flags are detected (e.g. "phishing", "malware", "registration fee", "IP address in URL", "known fraudulent"), the trust score is hard-capped at **48** regardless of other signal scores.
 
