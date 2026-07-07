@@ -77,7 +77,7 @@ Priority 1: Fine-tuned DistilBERT
   → Uses learned optimal threshold from model_info.json
   → Effective NLP weight: 100% of configured weight
 
-Priority 2: TF-IDF + XGBoost Baseline
+Priority 2: TF-IDF + Logistic Regression Baseline
   → Requires: models/baseline/vectorizer.pkl + classifier.pkl
   → Effective NLP weight: 85% of configured weight
 
@@ -86,7 +86,7 @@ Priority 3: Structural Heuristics (always available, zero dependencies)
   → Effective NLP weight: 70% of configured weight
 ```
 
-The `model_source` field in every scan response indicates which tier was used (`bert_finetuned`, `baseline_xgb`, or `heuristic`). On first startup, if no trained BERT model is found, the app **automatically launches background training** in a non-blocking daemon thread, keeping the API fully operational while BERT trains — and hot-swapping the model when training completes without requiring a restart.
+The `model_source` field in every scan response indicates which tier was used (`bert_finetuned`, `baseline_xgb` (representing the TF-IDF baseline), or `heuristic`). On first startup, if no trained BERT model is found, the app **automatically launches background training** in a non-blocking daemon thread, keeping the API fully operational while BERT trains — and hot-swapping the model when training completes without requiring a restart.
 
 ---
 
@@ -167,7 +167,7 @@ The explanation prompt instructs the model to write 3–4 flowing paragraphs (no
 |-------|-----------|
 | **Backend API** | Python 3.11, FastAPI, Uvicorn, SQLAlchemy, Alembic |
 | **Async Tasks** | Celery, Redis Broker |
-| **Frontend** | React 18, Vite, Tailwind CSS, Lucide React, Recharts, Framer Motion |
+| **Frontend** | React 18, Vite, Tailwind CSS, Lucide React |
 | **ML / NLP** | DistilBERT (HuggingFace Transformers), Sentence-BERT, FAISS, PyTorch, Scikit-learn, XGBoost, LightGBM |
 | **Database** | PostgreSQL (primary data store), SQLite (local dev) |
 | **LLM Engine** | Ollama (Mistral-7B) / OpenAI GPT-4o-mini |
@@ -373,7 +373,7 @@ FraudLens-AI/
 │   ├── ml/                              # ML Model Loaders
 │   │   ├── __init__.py
 │   │   ├── bert_model.py                # DistilBERT inference loader and predictor
-│   │   ├── baseline_model.py            # XGBoost/LightGBM baseline inference
+│   │   ├── baseline_model.py            # TF-IDF + Logistic Regression baseline inference
 │   │   ├── sbert_faiss.py               # Sentence-BERT encoder + FAISS index search
 │   │   └── constants.py                 # Shared label maps, threshold constants
 │   │
@@ -533,7 +533,7 @@ FraudLens-AI/
     │   ├── metadata.json                # Index metadata (size, dimension)
     │   └── index_info.json
     ├── baseline/
-    │   ├── classifier.pkl               # XGBoost/LightGBM baseline model
+    │   ├── classifier.pkl               # Logistic Regression baseline model
     │   ├── vectorizer.pkl               # TF-IDF feature vectorizer
     │   ├── scaler.pkl                   # Feature scaler
     │   └── features.json                # Feature list for inference
