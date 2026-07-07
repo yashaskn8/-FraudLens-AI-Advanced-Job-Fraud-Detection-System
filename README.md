@@ -7,142 +7,133 @@
 [![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)](https://pytorch.org)
 [![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=FFD62B)](https://vitejs.dev)
 
-FraudLens-AI is a production-grade, end-to-end intelligent security system that protects job seekers by scanning job listings across **7 distinct analysis signals**. It computes an aggregated **Trust Score (0–100)** and generates an AI-powered plain-English explanation outlining exactly why a job posting is flagged or trusted.
+FraudLens-AI is a production-grade, end-to-end intelligent security platform that protects job seekers by scanning job listings across **7 distinct analysis signals**. It computes an aggregated **Trust Score (0–100)** and generates an AI-powered, plain-English explanation outlining exactly why a job posting is flagged or trusted.
 
 ---
 
 ## 🏗️ System Architecture
 
-FraudLens-AI consists of a **FastAPI backend** processing data through deep learning and rule-based pipelines, a **React/Tailwind CSS frontend dashboard**, and a **Chrome Extension** for real-time scanning on job boards (LinkedIn, Naukri, Indeed, etc.).
+![FraudLens-AI System Architecture](docs/architecture.png)
 
-```
-                          ┌────────────────────────┐
-                          │   Chrome Extension     │
-                          └───────────┬────────────┘
-                                      │ (Scan API)
-                                      ▼
-┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│   React UI   │────▶│  FastAPI API  │────▶│  PostgreSQL  │
-│  (Tailwind)  │     │  (Python 3.11)│     │  (Scan Logs) │
-└──────────────┘     └──────┬───────┘     └──────────────┘
-                            │
-              ┌─────────────┼─────────────┐
-              ▼             ▼             ▼
-      ┌──────────┐   ┌──────────┐   ┌──────────┐
-      │DistilBERT│   │SBERT+FAISS│   │  Ollama  │
-      │Classifier│   │ Similarity│   │  (LLM)   │
-      └──────────┘   └──────────┘   └──────────┘
-```
+FraudLens-AI is built around a high-performance **FastAPI backend** that routes job posting data through a multi-layer analysis pipeline combining rule-based heuristics, fine-tuned deep learning classifiers, and vector-similarity search. A **React/Tailwind CSS dashboard** provides full visibility into scan results, history, and analytics. A lightweight **Chrome Extension** enables one-click in-browser scanning directly on LinkedIn, Naukri, and Indeed.
 
 ---
 
 ## 🔍 The 7-Signal Verification Engine
 
-FraudLens-AI evaluates job postings using a multi-layered analysis pipeline. Scores are dynamically weighted based on signal availability:
+FraudLens-AI evaluates every job posting through a dynamically-weighted multi-signal analysis pipeline. Signal weights are redistributed automatically when a signal is unavailable or unreliable:
 
 | # | Signal | Base Weight | Description |
-|---|--------|-------------|-------------|
-| **1** | **URL Analysis** | 20% | Domain age, SSL details, WHOIS records, redirect chains, and lookup against known phishing databases. |
-| **2** | **NLP Classification** | 25% | A DistilBERT model fine-tuned on 18,000+ job listings to classify scam vs. legitimate descriptions. |
-| **3** | **Company Verification** | 20% | Validation against government registries (e.g., India's MCA21), active domain checks, and MX record presence. |
-| **4** | **Duplicate Detection** | 15% | Uses Sentence-BERT embeddings paired with a local FAISS index to find highly similar or reposted scam templates. |
-| **5** | **Email Validation** | 10% | Scoring contact addresses based on generic vs. corporate domains, checking matching domain records. |
-| **6** | **Consistency Check** | 5% | Cross-checks specified salaries, job titles, and experience requirements against statistical norms. |
-| **7** | **Scam Phrases** | 5% | Scan for high-frequency patterns, weighted keywords, and suspicious language layouts. |
+|---|--------|:-----------:|-------------|
+| **1** | **URL Analysis** | 20% | Domain age, SSL certificate validity, WHOIS records, redirect chain inspection, and real-time lookup against URLHaus, OpenPhish, and PhiUSIIL phishing databases. |
+| **2** | **NLP Classification** | 25% | A DistilBERT model fine-tuned on 18,000+ labelled job postings (EMSCAD dataset) to classify scam vs. legitimate job descriptions with high precision. |
+| **3** | **Company Verification** | 20% | Registry validation against government databases (MCA21 / FTC / UK Companies House), active domain checks, MX record verification, and GSTIN lookup. |
+| **4** | **Duplicate Detection** | 15% | Sentence-BERT embeddings searched against a FAISS vector index of known fraudulent templates to detect reposted scam content. |
+| **5** | **Email Validation** | 10% | Scoring recruiter email addresses based on domain type (generic vs. corporate), SPF/MX record checks, and disposable email detection. |
+| **6** | **Consistency Check** | 5% | Cross-referencing stated salaries, required experience levels, and job titles against statistical distributions to flag implausible combinations. |
+| **7** | **Scam Phrases** | 5% | Dictionary-based scanning across 30+ weighted high-risk phrases and suspicious language patterns in 8 languages. |
 
 ---
 
 ## 📦 Tech Stack
 
-* **Backend:** Python 3.11, FastAPI, SQLAlchemy, Alembic, Celery
-* **Frontend:** React 18, Vite, Tailwind CSS, Lucide React, Recharts
-* **Machine Learning & Indexing:** DistilBERT, Sentence-BERT, FAISS, PyTorch, Scikit-learn
-* **Database & Queue:** PostgreSQL (data storage), Redis (Celery broker)
-* **LLM Engine:** Ollama (Mistral-7B) / OpenAI GPT-4o-mini (for natural language explanation)
+| Layer | Technology |
+|-------|-----------|
+| **Backend API** | Python 3.11, FastAPI, Uvicorn, SQLAlchemy, Alembic |
+| **Async Tasks** | Celery, Redis Broker |
+| **Frontend** | React 18, Vite, Tailwind CSS, Lucide React, Recharts, Framer Motion |
+| **ML / NLP** | DistilBERT (HuggingFace Transformers), Sentence-BERT, FAISS, PyTorch, Scikit-learn, XGBoost, LightGBM |
+| **Database** | PostgreSQL (primary data store), SQLite (local dev) |
+| **LLM Engine** | Ollama (Mistral-7B) / OpenAI GPT-4o-mini |
+| **External APIs** | Google Safe Browsing, VirusTotal, WhoisXML |
+| **Auth** | JWT (python-jose), bcrypt (passlib) |
+| **Rate Limiting** | SlowAPI |
 
 ---
 
 ## 🚀 Quick Start (Local Setup)
 
 ### Prerequisites
-Make sure you have the following installed on your host system:
-* Python 3.11+
-* Node.js & npm (v18+)
-* PostgreSQL & Redis Server
+Ensure the following are installed on your system:
+* **Python 3.11+**
+* **Node.js v18+ & npm**
+* **PostgreSQL** (running locally)
+* **Redis** (running locally)
 
-### Step 1: Install Dependencies & Run Setup
-Run the main setup script to prepare the virtual environment, install python libraries, setup the database, and download/train the model components:
+### Step 1 — Install Dependencies & Setup
+Run the comprehensive setup script to install all Python and Node dependencies, configure the database, and download/train all ML models:
 
 ```bash
-# Give execution permissions (on Linux/Mac)
 chmod +x setup.sh
-
-# Run the setup script
 ./setup.sh
 ```
 
-> [!NOTE]
-> The setup script will automatically download the required datasets, initialize your local database migrations via Alembic, and trigger the training process for the ML classifiers.
+> **Note:** This runs Alembic migrations, downloads EMSCAD and supplementary fraud datasets from multiple sources, and trains the DistilBERT, SBERT+FAISS, URL, and baseline classifiers. Estimated time: 30–90 minutes depending on hardware.
 
-### Step 2: Start PostgreSQL and Redis
-Ensure your local PostgreSQL database and Redis servers are running:
+### Step 2 — Configure Environment
+Copy the example environment file and fill in your API keys:
+
 ```bash
-# Example (Linux)
-sudo service postgresql start
-sudo service redis-server start
+cp .env.example .env
 ```
 
-### Step 3: Run the FastAPI Backend
-Activate the virtual environment and start the uvicorn API server:
+Edit `.env` with your API keys for Google Safe Browsing, VirusTotal, WhoisXML, and optionally OpenAI.
+
+### Step 3 — Start Services (4 separate terminals)
+
+**Terminal 1 — FastAPI Backend:**
 ```bash
 source venv/bin/activate
 uvicorn backend.main:app --reload --port 8000
 ```
-The API documentation will be available at: http://localhost:8000/docs
 
-### Step 4: Start the Celery Worker (In a separate terminal)
-Activate the virtual environment and start Celery to process backend tasks asynchronously:
+**Terminal 2 — Celery Worker:**
 ```bash
 source venv/bin/activate
 celery -A backend.celery_app worker --loglevel=info
 ```
 
-### Step 5: Start the Frontend UI (In a separate terminal)
-Navigate to the frontend directory and start the Vite dev server:
+**Terminal 3 — React Frontend:**
 ```bash
 cd frontend
 npm run dev
 ```
-The React dashboard will be accessible at: http://localhost:3000
+
+**Access Points:**
+| Service | URL |
+|---------|-----|
+| React Dashboard | http://localhost:3000 |
+| FastAPI Backend | http://localhost:8000 |
+| Interactive API Docs | http://localhost:8000/docs |
 
 ---
 
-## 🔌 Chrome Extension Integration
+## 🔌 Chrome Extension Installation
 
-Instantly scan job listings directly on LinkedIn, Naukri, or Indeed:
+Scan any job listing on LinkedIn, Naukri, or Indeed in one click:
 
-1. Open your browser and navigate to `chrome://extensions/`
-2. Turn on **Developer mode** (top-right toggle switch).
-3. Click on **Load unpacked** in the top left.
-4. Select the `chrome-extension/` directory from this project workspace.
-5. Open any job board, click the FraudLens icon, and hit **Scan Job**!
+1. Navigate to `chrome://extensions/` in your browser.
+2. Enable **Developer mode** (toggle in the top-right corner).
+3. Click **Load unpacked**.
+4. Select the `chrome-extension/` directory from this project.
+5. Click the FraudLens icon on any job listing page and hit **Scan Job**.
 
 ---
 
-## 📡 API Endpoints
+## 📡 API Reference
 
-| Method | Endpoint | Description |
-|:---|:---|:---|
-| `POST` | `/api/v1/scan` | Submits a job description and/or URL for trust evaluation. |
-| `GET` | `/api/v1/scan/{id}` | Fetches detailed signal scores and verdicts for a specific scan ID. |
-| `GET` | `/api/v1/history` | Retrieves a historical feed of recent job scans. |
-| `POST` | `/api/v1/report` | Enables community reporting of newly encountered scams. |
-| `GET` | `/api/v1/reports` | Retrieves user-reported scams database. |
-| `GET` | `/api/v1/analytics/dashboard` | Fetches aggregate system-wide analytics. |
-| `POST` | `/api/v1/auth/register` | Registers a new user. |
-| `POST` | `/api/v1/auth/login` | Logins user and generates JWT session tokens. |
+| Method | Endpoint | Auth | Description |
+|:------:|:---------|:----:|:------------|
+| `POST` | `/api/v1/scan` | Optional | Submit a job posting URL and/or description for trust evaluation. |
+| `GET` | `/api/v1/scan/{id}` | No | Retrieve full signal breakdown and verdict for a scan by ID. |
+| `GET` | `/api/v1/history` | Optional | Get paginated history of recent scans. |
+| `POST` | `/api/v1/report` | Optional | Submit a community fraud report for a job posting. |
+| `GET` | `/api/v1/reports` | No | Retrieve all community-submitted fraud reports. |
+| `GET` | `/api/v1/analytics/dashboard` | No | Fetch aggregate analytics (scan counts, verdict distributions, top flags). |
+| `POST` | `/api/v1/auth/register` | No | Register a new user account. |
+| `POST` | `/api/v1/auth/login` | No | Authenticate and receive a JWT session token. |
 
-### Sample Scan Request (`POST /api/v1/scan`)
+### Sample Scan Request
 ```json
 {
   "url": "https://careers.google.com/jobs/results/987654321",
@@ -161,7 +152,7 @@ Instantly scan job listings directly on LinkedIn, Naukri, or Indeed:
   "verdict": "SAFE",
   "verdict_color": "green",
   "confidence": 0.95,
-  "recommendation": "Strong signals found. Verified corporate email, official domain registration, and high consistency scores.",
+  "recommendation": "Strong signals found. Verified corporate email, official domain, high NLP confidence.",
   "flags": [],
   "signal_scores": {
     "URL Analysis": 95,
@@ -172,41 +163,215 @@ Instantly scan job listings directly on LinkedIn, Naukri, or Indeed:
     "Consistency Check": 85,
     "Scam Phrases": 100
   },
-  "explanation": "The posting originates from an official Google domain with active SSL and verified WHOIS credentials. The description matches standards, and recruiter's corporate address is validated against registered DNS records."
+  "explanation": "The posting originates from an official Google domain with active SSL and verified WHOIS credentials..."
 }
 ```
 
 ---
 
-## 📂 Project Directory Structure
+## 📂 Complete Project Structure
 
 ```
 FraudLens-AI/
-├── backend/            # FastAPI Application & Celery Setup
-│   ├── main.py         # App Entry Point & Middleware
-│   ├── config.py       # Pydantic Settings Schema
-│   ├── services/       # 7-Signal Analysers & Score Engine
-│   ├── routers/        # API Routers & Controllers
-│   ├── models/         # SQLAlchemy DB Models
-│   ├── schemas/        # Pydantic Schemas for Validation
-│   ├── ml/             # ML Loaders and Transformers
-│   └── tasks/          # Celery Async Background Tasks
-├── frontend/           # React App (Vite + Tailwind)
+│
+├── .env.example                         # Environment variable template
+├── .gitignore                           # Git exclusions (venv, data, models, db)
+├── README.md                            # Project documentation
+├── alembic.ini                          # Alembic database migration configuration
+├── requirements.txt                     # Production Python dependencies
+├── setup.sh                             # Full local environment setup script
+├── trusthire.db                         # SQLite database (local dev only)
+│
+├── docs/
+│   └── architecture.png                 # System architecture diagram
+│
+├── backend/                             # FastAPI Application
+│   ├── __init__.py
+│   ├── main.py                          # App entry point, router registration, CORS, startup
+│   ├── config.py                        # Pydantic settings (env vars, signal weights, thresholds)
+│   ├── database.py                      # SQLAlchemy engine and session factory
+│   ├── middleware.py                    # Request logging and error handling middleware
+│   ├── celery_app.py                    # Celery instance and broker configuration
+│   │
+│   ├── ml/                              # ML Model Loaders
+│   │   ├── __init__.py
+│   │   ├── bert_model.py                # DistilBERT inference loader and predictor
+│   │   ├── baseline_model.py            # XGBoost/LightGBM baseline inference
+│   │   ├── sbert_faiss.py               # Sentence-BERT encoder + FAISS index search
+│   │   └── constants.py                 # Shared label maps, threshold constants
+│   │
+│   ├── models/                          # SQLAlchemy Database Models
+│   │   ├── __init__.py
+│   │   └── job_scan.py                  # JobScan, Report, User ORM models
+│   │
+│   ├── routers/                         # API Route Controllers
+│   │   ├── __init__.py
+│   │   ├── scan.py                      # POST /scan, GET /scan/{id}
+│   │   ├── auth.py                      # POST /auth/register, POST /auth/login
+│   │   ├── reports.py                   # POST /report, GET /reports
+│   │   └── analytics.py                 # GET /analytics/dashboard
+│   │
+│   ├── schemas/                         # Pydantic Request/Response Schemas
+│   │   ├── __init__.py
+│   │   └── scan.py                      # ScanRequest, ScanResponse, SignalScores schemas
+│   │
+│   ├── services/                        # Core Business Logic — 7 Signal Analysers
+│   │   ├── __init__.py
+│   │   ├── url_analyser.py              # Signal 1: URL heuristics, WHOIS, phishing DB lookup
+│   │   ├── nlp_classifier.py            # Signal 2: DistilBERT inference wrapper
+│   │   ├── company_verifier.py          # Signal 3: Registry lookup, domain/MX validation
+│   │   ├── trust_scorer.py              # Signal 4: SBERT+FAISS duplicate detection + score aggregation
+│   │   ├── consistency_checker.py       # Signal 6: Salary/title/experience consistency
+│   │   ├── explainer.py                 # LLM-powered plain-English explanation generator
+│   │   ├── job_relevance_detector.py    # Pre-check: confirms input is an actual job posting
+│   │   └── url_cache.py                 # Redis-backed URL result caching layer
+│   │
+│   └── tasks/                           # Celery Async Background Tasks
+│       ├── __init__.py
+│       └── scan_tasks.py                # Async scan pipeline task definitions
+│
+├── frontend/                            # React Application (Vite + Tailwind CSS)
+│   ├── index.html                       # HTML entry point
+│   ├── package.json                     # npm dependencies and scripts
+│   ├── package-lock.json
+│   ├── postcss.config.js                # PostCSS configuration
+│   ├── tailwind.config.js               # Tailwind CSS theme customization
+│   ├── vite.config.js                   # Vite bundler configuration
+│   │
+│   ├── public/
+│   │   └── vite.svg
+│   │
 │   └── src/
-│       ├── pages/      # Dashboard, Scan Logs, Submissions, About
-│       ├── components/ # Reusable UI Components
-│       └── api/        # Axios API Client Modules
-├── chrome-extension/   # Chrome Extension Source Files
-├── scripts/            # Model Training and Dataset Utilities
-├── models/             # Trained Weights (BERT, SBERT, FAISS Index)
-├── data/               # Raw and Processed Kaggle/Scraped Data
-└── requirements.txt    # Production Python Requirements
+│       ├── main.jsx                     # React app bootstrap and router
+│       ├── App.jsx                      # Root component with route definitions
+│       ├── index.css                    # Global styles and Tailwind directives
+│       │
+│       ├── api/
+│       │   └── client.js                # Axios API client with base URL and interceptors
+│       │
+│       ├── components/                  # Reusable UI Components
+│       │   ├── Navbar.jsx               # Navigation bar with links and auth state
+│       │   ├── ScanInput.jsx            # Job posting URL/text input form
+│       │   ├── TrustScoreGauge.jsx      # Animated circular trust score meter
+│       │   ├── SignalBreakdown.jsx      # Per-signal score bars with labels
+│       │   ├── RedFlagsList.jsx         # Collapsible list of detected fraud flags
+│       │   ├── ExplainerPanel.jsx       # LLM explanation display panel
+│       │   ├── ScanHistory.jsx          # Paginated history table
+│       │   ├── MagicCard.jsx            # Animated glassmorphism card component
+│       │   ├── LoadingState.jsx         # Scanning animation / loading skeleton
+│       │   ├── NotJobContentResult.jsx  # Result when input is not a job posting
+│       │   └── ReportButton.jsx         # Community fraud report submission button
+│       │
+│       ├── hooks/
+│       │   ├── useScan.js               # Custom hook: scan submission and state
+│       │   └── useAnalytics.js          # Custom hook: dashboard analytics fetch
+│       │
+│       ├── pages/                       # Page-Level Route Components
+│       │   ├── Home.jsx                 # Landing page with scan input
+│       │   ├── Results.jsx              # Full scan result with signal breakdown
+│       │   ├── Dashboard.jsx            # Analytics charts and aggregate metrics
+│       │   ├── Reports.jsx              # Community fraud reports browser
+│       │   └── About.jsx                # Project info and team page
+│       │
+│       └── styles/
+│           └── tokens.css               # CSS design tokens (colors, spacing, typography)
+│
+├── chrome-extension/                    # Browser Extension
+│   ├── manifest.json                    # Extension manifest (v3)
+│   ├── background.js                    # Service worker — API communication
+│   ├── content.js                       # Content script — extracts job data from page DOM
+│   ├── icons/                           # Extension icons (16px, 48px, 128px)
+│   └── popup/
+│       ├── popup.html                   # Extension popup UI
+│       ├── popup.css                    # Popup styles
+│       └── popup.js                     # Popup interaction logic
+│
+├── scripts/                             # Data & Model Utilities
+│   ├── download_data.py                 # Downloads EMSCAD dataset (Kaggle CLI + direct URL fallback + synthetic generation)
+│   ├── download_datasets.py             # Downloads supplementary job fraud datasets
+│   ├── download_all_datasets.py         # Orchestrates all dataset downloads in sequence
+│   ├── download_global_datasets.py      # Downloads worldwide fraud report datasets (FTC, Action Fraud UK, ACCC)
+│   ├── download_worldwide_datasets.py   # Extended global dataset download with multilingual sources
+│   ├── train_models.py                  # Trains DistilBERT, SBERT+FAISS, and URL classifier
+│   ├── train_all_models.py              # Full training pipeline for all model variants
+│   ├── test_global_features.py          # Integration test runner for worldwide detection features
+│   ├── full_setup.sh                    # Complete one-command setup: install + download + train
+│   ├── install_all.sh                   # Installs all Python and frontend dependencies
+│   ├── install_backend.sh               # Installs backend-only Python ML stack
+│   └── install_worldwide.sh             # Installs worldwide/multilingual NLP dependencies
+│
+├── migrations/                          # Alembic Database Migrations
+│   ├── env.py                           # Alembic migration environment configuration
+│   ├── script.py.mako                   # Migration script template
+│   └── versions/
+│       └── 001_initial.py               # Initial schema: job_scans, reports, users tables
+│
+├── data/                                # Training Datasets (auto-generated by scripts)
+│   ├── raw/
+│   │   ├── fake_job_postings.csv        # EMSCAD dataset (18K labelled job postings)
+│   │   ├── jobs/
+│   │   │   └── fake_job_postings.csv
+│   │   ├── urls/
+│   │   │   ├── openphish.txt            # OpenPhish live phishing URL feed
+│   │   │   ├── urlhaus.csv              # URLHaus malicious URL database
+│   │   │   ├── urlhaus_recent.csv       # Recent URLHaus additions
+│   │   │   ├── PhiUSIIL.csv             # PhiUSIIL phishing dataset
+│   │   │   ├── iscx_urls.csv            # ISCX URL dataset
+│   │   │   ├── job_url_patterns.csv     # Job-specific URL pattern analysis
+│   │   │   └── global_job_url_patterns.csv
+│   │   ├── domains/
+│   │   │   ├── majestic_million.csv     # Majestic Million trusted domain whitelist
+│   │   │   └── whitelist.csv            # Custom trusted domain whitelist
+│   │   ├── fraud_reports/
+│   │   │   ├── ftc_sentinel_job_fraud.csv    # FTC Sentinel job fraud reports (USA)
+│   │   │   ├── action_fraud_uk.csv           # Action Fraud UK reports
+│   │   │   ├── accc_scamwatch.csv            # ACCC Scamwatch reports (Australia)
+│   │   │   └── regional_fraud_vocabulary.csv # Multilingual fraud vocabulary
+│   │   └── multilingual/                # Multilingual job scam dataset (8 languages)
+│   └── processed/
+│       ├── train.csv                    # Training split for NLP classifier
+│       ├── val.csv                      # Validation split for NLP classifier
+│       ├── test.csv                     # Test split for NLP classifier
+│       ├── url_train.csv                # URL classifier training split
+│       ├── url_val.csv                  # URL classifier validation split
+│       ├── url_test.csv                 # URL classifier test split
+│       ├── scam_phrases.csv             # English scam phrase dictionary
+│       ├── scam_phrases_global.csv      # Multilingual scam phrase dictionary
+│       └── global_registry_index.json   # Company registry lookup index
+│
+└── models/                              # Trained Model Weights (auto-created by training scripts)
+    ├── bert_fraud_classifier/
+    │   ├── final/                       # Final trained DistilBERT model
+    │   │   ├── config.json
+    │   │   ├── model.safetensors        # Model weights (~265 MB)
+    │   │   ├── tokenizer.json
+    │   │   ├── tokenizer_config.json
+    │   │   ├── training_args.bin
+    │   │   └── model_info.json
+    │   ├── checkpoint-313/              # Training checkpoint at step 313
+    │   └── checkpoint-626/              # Training checkpoint at step 626
+    ├── faiss_index/
+    │   ├── fake_jobs.index              # FAISS index of fraud job embeddings
+    │   ├── real_jobs.index              # FAISS index of legitimate job embeddings
+    │   ├── metadata.json                # Index metadata (size, dimension)
+    │   └── index_info.json
+    ├── baseline/
+    │   ├── classifier.pkl               # XGBoost/LightGBM baseline model
+    │   ├── vectorizer.pkl               # TF-IDF feature vectorizer
+    │   ├── scaler.pkl                   # Feature scaler
+    │   └── features.json                # Feature list for inference
+    └── url_classifier/
+        ├── xgb_model.pkl                # XGBoost URL classifier
+        ├── lgb_model.pkl                # LightGBM URL classifier
+        ├── scaler.pkl                   # URL feature scaler
+        ├── feature_names.json           # URL feature names
+        └── model_info.json
 ```
 
 ---
 
 ## 📄 License & Disclaimer
 
-Distributed under the MIT License. See `LICENSE` for more information.
+Distributed under the **MIT License**.
 
-*Disclaimer: FraudLens-AI is a decision support tool built for educational and research purposes. While it leverages advanced ML, it is not a guarantee of job security or legitimacy.*
+> **Disclaimer:** FraudLens-AI is a decision support tool built for educational and research purposes. While it leverages state-of-the-art ML models and heuristics, it should be used as one factor in evaluating job postings and is not a guarantee of legitimacy or fraud.
