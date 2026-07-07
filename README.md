@@ -35,6 +35,139 @@ FraudLens-AI evaluates every job posting through a dynamically-weighted multi-si
 
 ---
 
+## ⚙️ Trust Score Engine — How Scoring Works
+
+The trust score is computed by [`backend/services/trust_scorer.py`](backend/services/trust_scorer.py) using a **dynamic weight redistribution** model. The key design principle is distinguishing between **signals with no data** (missing input — excluded neutrally) and **signals with active fraud evidence** (positively detected problems — penalised).
+
+### Configured Signal Weights
+Base weights are configured in [`backend/config.py`](backend/config.py) and are redistributed at runtime:
+
+| Signal | Configured Weight | Notes |
+|--------|:-----------------:|-------|
+| URL Analysis | **35%** | Most reliable — always available if a URL is provided |
+| NLP Classification | **30%** | Reduced to 85% when only the baseline TF-IDF model is active; 70% when heuristics-only |
+| Company Verification | **25%** | Excluded if no company name or email is provided |
+| Duplicate Detection | **5%** | Supplementary signal via SBERT+FAISS |
+| Scam Phrases | **5%** | Supplementary signal via weighted dictionary |
+
+When a signal is excluded (e.g. no company name provided), its weight is proportionally redistributed across the remaining reliable signals.
+
+### Three Safety Corrections
+After the weighted average is calculated, three evidence-gated corrections are applied:
+
+1. **Score Floor** — If any signal with active fraud evidence scores below the weighted average by more than 20 points, the final score is capped at `lowest_fraud_signal + 20`. This correction is *not* applied when a low score comes from API unavailability or missing data.
+
+2. **Multi-Warning Penalty** — If 2+ signals with active fraud evidence score below 35/100 (danger zone), a 40% penalty is applied (`score × 0.60`). Combinations of 1 danger + 2 warnings apply a 28% penalty. Two warnings without danger signals apply a 18% penalty.
+
+3. **Red Flag Hard Cap** — If 2 or more high-severity flags are detected (e.g. "phishing", "malware", "registration fee", "IP address in URL", "known fraudulent"), the trust score is hard-capped at **48** regardless of other signal scores.
+
+### Verdict Thresholds
+
+| Trust Score | Verdict | Colour |
+|:-----------:|---------|:------:|
+| ≥ 70 | `SAFE` | 🟢 Green |
+| 45 – 69 | `SUSPICIOUS` | 🟡 Yellow |
+| 25 – 44 | `LIKELY_FRAUD` | 🟠 Orange |
+| < 25 | `FRAUD` | 🔴 Red |
+
+*Example calibration: A legitimate job with URL score=100, Company score=80, and NLP signal excluded computes as: (100×0.35 + 80×0.25) / (0.35+0.25) = **91.7 → SAFE***
+
+---
+
+## 🧠 NLP Classifier — Priority Chain
+
+The NLP pipeline in [`backend/services/nlp_classifier.py`](backend/services/nlp_classifier.py) follows a strict priority chain to guarantee a score is always returned, regardless of model availability:
+
+```
+Priority 1: Fine-tuned DistilBERT
+  → Requires: models/bert_fraud_classifier/final/ (trained by train_models.py)
+  → Uses learned optimal threshold from model_info.json
+  → Effective NLP weight: 100% of configured weight
+
+Priority 2: TF-IDF + XGBoost Baseline
+  → Requires: models/baseline/vectorizer.pkl + classifier.pkl
+  → Effective NLP weight: 85% of configured weight
+
+Priority 3: Structural Heuristics (always available, zero dependencies)
+  → Rule-based scam phrase scoring + structural pattern analysis
+  → Effective NLP weight: 70% of configured weight
+```
+
+The `model_source` field in every scan response indicates which tier was used (`bert_finetuned`, `baseline_xgb`, or `heuristic`). On first startup, if no trained BERT model is found, the app **automatically launches background training** in a non-blocking daemon thread, keeping the API fully operational while BERT trains — and hot-swapping the model when training completes without requiring a restart.
+
+---
+
+## 🌐 URL Analyser — Sub-Signals
+
+The URL analyser in [`backend/services/url_analyser.py`](backend/services/url_analyser.py) extracts and combines the following sub-signals into a single `url_trust_score`:
+
+| Sub-Signal | Source |
+|---|---|
+| HTTPS & SSL certificate validity | Live socket probe |
+| Domain age (days since registration) | WHOIS lookup |
+| Registrar country | WHOIS |
+| Free hosting provider detection | 23-domain blocklist (Wix, GitHub Pages, Netlify, etc.) |
+| URL shortener detection | 12-provider blocklist (bit.ly, t.co, etc.) |
+| Redirect chain length & final URL | HTTP follow-redirect trace |
+| Google Safe Browsing lookup | External API (optional key) |
+| VirusTotal malicious count | External API (optional key) |
+| URL entropy (character randomness) | Shannon entropy calculation |
+| IP address in URL | Regex detection |
+| Random subdomain detection | Entropy threshold |
+| Typosquatting against 17 major brands | Edit-distance fuzzy match |
+| Suspicious TLD detection | `.tk`, `.ml`, `.ga`, `.xyz`, `.click`, and 18 others |
+| Fraud keywords in URL path | 25-keyword dictionary |
+| Live page content scan | HTML title, meta-description, scam keyword count, login form presence |
+| XGBoost ML URL classifier | Trained on PhiUSIIL + URLHaus + ISCX datasets |
+
+---
+
+## 🏢 Company Verifier — Key Principles
+
+The company verifier in [`backend/services/company_verifier.py`](backend/services/company_verifier.py) is built on one critical design principle:
+
+> **Brand name presence in a domain is a RED FLAG — not a positive signal — unless the domain exactly matches the brand's registered root domain.**
+
+The verifier maintains a **verified global employer whitelist** of 60+ exact root domains (e.g. `google.com`, `tcs.com`, `barclays.com`), grouped by region (India IT, Global Tech, UK, Australia, Canada, Germany, Singapore, UAE, Indian Startups, Job Boards, and ATS platforms). A domain like `google-career-verification.org` does **not** pass — it triggers a brand impersonation flag.
+
+Verification checks performed:
+- Exact root domain match against verified whitelist
+- Career subdomain validation (`careers.`, `jobs.`, `hiring.`)
+- Brand token impersonation detection across 50+ known brand tokens
+- MX record presence check (does the domain have a mail server?)
+- Domain active/live check via HTTP probe
+
+---
+
+## 🚦 Job Relevance Gate
+
+Every scan request first passes through the **Job Relevance Gate** (`backend/services/job_relevance_detector.py`) before any fraud analysis begins. This pre-check determines whether the submitted URL or text is actually a job posting.
+
+Detected types:
+- `job_board` — URL is from a known job board (LinkedIn, Naukri, Indeed, etc.)
+- `employer_career` — URL has a career subdomain on a legitimate employer domain
+- `job_description` — Free text contains sufficient job-posting signals
+- `not_job` — Input is not job-related (e.g. `gemini.google.com`, `chat.openai.com`, `bing.com`)
+- `unknown` — Insufficient data to classify
+
+If the gate classifies input as `not_job`, the scan returns `is_job_content: false` with a human-readable `rejection_reason` and actionable `suggestions` rather than running the full 7-signal pipeline.
+
+---
+
+## 🤖 LLM Explanation Engine
+
+After scoring, FraudLens-AI generates a plain-English explanation using one of two LLM backends configured via the `LLM_PROVIDER` environment variable:
+
+| Provider | Config | Notes |
+|----------|:------:|-------|
+| `ollama` (default) | `OLLAMA_BASE_URL`, `OLLAMA_MODEL` | Free, runs locally. Default model: `mistral`. |
+| `openai` | `OPENAI_API_KEY` | Cloud-based, uses `gpt-4o-mini`. Higher quality. |
+| Fallback | None | Rule-based explanation generated if both LLMs are unavailable. |
+
+The explanation prompt instructs the model to write 3–4 flowing paragraphs (no bullet points) covering: what the overall verdict means, the 2–3 most significant red flags and why they matter, and specific actions the job seeker should take next. The model is instructed not to repeat raw flag text verbatim — it must translate technical signals into human terms.
+
+---
+
 ## 📦 Tech Stack
 
 | Layer | Technology |
@@ -105,6 +238,57 @@ npm run dev
 | React Dashboard | http://localhost:3000 |
 | FastAPI Backend | http://localhost:8000 |
 | Interactive API Docs | http://localhost:8000/docs |
+
+---
+
+## ⚡ Graceful Degradation
+
+FraudLens-AI is designed to always produce a result, even with incomplete inputs or untrained models:
+
+| Condition | Behaviour |
+|-----------|----------|
+| No URL provided | URL Analysis signal excluded; weight redistributed to remaining signals |
+| No description provided | NLP signal marked `is_reliable=False` and excluded from score fusion |
+| No company name provided | Company Verification excluded; zero impact on score |
+| BERT not trained | Falls back to TF-IDF baseline (85% weight), then to heuristics (70% weight) |
+| BERT model missing on startup | Background training launches automatically in a daemon thread |
+| LLM (Ollama/OpenAI) unavailable | Rule-based fallback explanation is generated |
+| VirusTotal / Safe Browsing API key missing | URL analyser runs without threat-intel (heuristic mode) |
+| No reliable signals at all | Score defaults to 50 (`SUSPICIOUS`) with `confidence=0` |
+
+---
+
+## 🔑 Environment Variables
+
+All configuration is managed via `.env` (copy from `.env.example`):
+
+```env
+# Database
+DATABASE_URL=postgresql://trusthire_user:trusthire_pass@localhost/trusthire
+
+# Redis & Celery
+REDIS_URL=redis://localhost:6379/0
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_RESULT_BACKEND=redis://localhost:6379/1
+
+# External APIs (all optional — system degrades gracefully without them)
+GOOGLE_SAFE_BROWSING_API_KEY=
+VIRUSTOTAL_API_KEY=
+WHOISXML_API_KEY=
+
+# LLM Provider: "ollama" (default, free) or "openai"
+LLM_PROVIDER=ollama
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=mistral
+OPENAI_API_KEY=
+
+# Security
+SECRET_KEY=your-secret-key-change-in-production
+
+# Rate Limits
+RATE_LIMIT_FREE=10/minute
+RATE_LIMIT_REGISTERED=60/minute
+```
 
 ---
 
