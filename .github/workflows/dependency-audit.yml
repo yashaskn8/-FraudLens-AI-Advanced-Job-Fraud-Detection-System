@@ -27,4 +27,38 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt pip-audit==2.10.1
-          pip-audit -r requirements.txt
+          set +e
+          pip-audit -r requirements.txt --format json --output audit.json
+          audit_status=$?
+          set -e
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report_path = Path("audit.json")
+          summary_path = Path(os.environ["GITHUB_STEP_SUMMARY"])
+          if not report_path.exists():
+              print("::error title=pip-audit::pip-audit did not produce a report")
+          else:
+              report = json.loads(report_path.read_text())
+              findings = [
+                  (dependency, vulnerability)
+                  for dependency in report
+                  for vulnerability in dependency.get("vulns", [])
+              ]
+              if not findings:
+                  print("No known vulnerabilities found.")
+              else:
+                  with summary_path.open("a", encoding="utf-8") as summary_file:
+                      print("## pip-audit findings", file=summary_file)
+                      for dependency, vulnerability in findings:
+                          package = f"{dependency['name']}=={dependency['version']}"
+                          vulnerability_id = vulnerability["id"]
+                          aliases = ", ".join(vulnerability.get("aliases", [])) or "none"
+                          fixes = ", ".join(vulnerability.get("fix_versions", [])) or "none published"
+                          finding_summary = f"{package}: {vulnerability_id}; aliases: {aliases}; fixes: {fixes}"
+                          print(f"::error title=pip-audit::{finding_summary}")
+                          print(f"- {finding_summary}", file=summary_file)
+          PY
+          exit "$audit_status"
