@@ -177,6 +177,47 @@ The explanation prompt instructs the model to write 3–4 flowing paragraphs (no
 
 ---
 
+## 🐳 Docker Quick Start
+
+Run the full portfolio/demo stack without installing Python, PostgreSQL, Redis,
+or Node.js locally. Docker Desktop is the only prerequisite.
+
+```bash
+cp .env.example .env
+# Add any optional API keys to .env, then start the stack.
+docker compose up --build
+```
+
+**Access points:**
+
+| Service | URL |
+|---------|-----|
+| React Dashboard | http://localhost:3000 |
+| FastAPI Backend | http://localhost:8000 |
+| Interactive API Docs | http://localhost:8000/docs |
+| API Health | http://localhost:8000/health |
+
+The first response is available as soon as the backend health check passes; it
+does not wait for model training. The Docker stack uses portable named volumes
+for PostgreSQL, `data/`, and `models/`, so container rebuilds retain any model
+artifacts and training data without depending on host paths.
+
+On startup, the backend checks its model artifacts and falls back through
+TF-IDF and then heuristics when BERT is not trained. If the named `data/`
+volume already contains both processed training datasets, the existing lifespan
+logic starts BERT training in a background daemon thread while the API remains
+fully operational. Fresh Docker volumes intentionally contain no datasets, so
+the heuristic fallback is expected until training data is supplied; this is
+graceful degradation, not a failed startup.
+
+The nginx frontend proxies browser `/api/` requests to the backend container,
+so the dashboard can reach the API without exposing a Docker-only hostname to
+the browser. A Celery worker also starts for the documented asynchronous
+architecture, although normal `POST /api/v1/scan` requests currently run
+synchronously.
+
+---
+
 ## 🚀 Quick Start (Local Setup)
 
 ### Prerequisites

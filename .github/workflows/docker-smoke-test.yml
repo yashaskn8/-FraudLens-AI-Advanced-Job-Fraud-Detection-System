@@ -1,0 +1,89 @@
+name: Docker Compose smoke test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  docker-smoke-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Create demo environment file
+        run: cp .env.example .env
+
+      - name: Build and start the Compose stack
+        run: docker compose up --build -d
+
+      - name: Wait for backend health check
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in {1..60}; do
+            if health=$(curl --fail --silent --show-error http://localhost:8000/health); then
+              echo "$health" | jq -e '
+                .status == "healthy"
+                and (.models | has("bert_trained"))
+                and (.models | has("training_active"))
+                and (.models | has("faiss_available"))
+                and (.models | has("baseline_available"))
+              ' >/dev/null
+              echo "Backend health check passed on attempt $attempt."
+              exit 0
+            fi
+            echo "Waiting for backend health check (attempt $attempt/60)..."
+            sleep 5
+          done
+          echo "Backend did not become healthy in time."
+          exit 1
+
+      - name: Smoke-test job scan endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          response=$(curl --fail-with-body --silent --show-error \
+            --request POST http://localhost:8000/api/v1/scan \
+            --header 'Content-Type: application/json' \
+            --data '{"description":"A detailed engineering position with responsibilities, qualifications, and a collaborative software development team."}')
+          echo "$response" | jq -e '
+            (.scan_id | type == "string" and length > 0)
+            and (.verdict | type == "string")
+            and (.confidence | type == "number")
+            and (.is_job_content == true)
+          ' >/dev/null
+          echo "Job scan response passed schema smoke test."
+
+      - name: Smoke-test nginx frontend
+        run: curl --fail --silent --show-error http://localhost:3000/ >/dev/null
+
+      - name: Confirm Celery worker started
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in {1..30}; do
+            if docker compose logs --no-color celery | grep --ignore-case --extended-regexp 'ready\.|connected to redis'; then
+              echo "Celery worker startup confirmed."
+              exit 0
+            fi
+            echo "Waiting for Celery startup (attempt $attempt/30)..."
+            sleep 2
+          done
+          echo "Celery worker readiness was not found in its logs."
+          exit 1
+
+      - name: Dump Compose logs after failure
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Tear down Compose stack
+        if: always()
+        run: docker compose down -v

@@ -12,6 +12,12 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+# Docker Compose supplies DATABASE_URL for the postgres service. Keep the
+# alembic.ini value as the local-development fallback when it is not set.
+database_url = os.getenv("DATABASE_URL")
+if database_url:
+    config.set_main_option("sqlalchemy.url", database_url)
+
 target_metadata = Base.metadata
 
 

@@ -1,6 +1,9 @@
 import axios from "axios";
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+// Docker's nginx frontend proxies /api/ to the backend service. A relative
+// default keeps browser requests on the frontend origin instead of exposing a
+// container-only hostname such as http://backend:8000 to the browser.
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
 const api = axios.create({
   baseURL: BASE_URL,
