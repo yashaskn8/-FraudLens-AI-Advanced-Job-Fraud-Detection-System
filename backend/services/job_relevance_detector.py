@@ -21,6 +21,8 @@ import httpx
 import tldextract
 from bs4 import BeautifulSoup
 
+from backend.security.ssrf_guard import get_with_validated_redirects
+
 log = logging.getLogger("trusthire.relevance")
 
 
@@ -466,10 +468,10 @@ async def _fetch_page_sample(url: str):
     """
     try:
         async with httpx.AsyncClient(
-            timeout=6.0, follow_redirects=True,
+            timeout=6.0, follow_redirects=False,
             headers={"User-Agent": "Mozilla/5.0 (compatible; TrustHire/1.0 +https://trusthire.app)"}
         ) as client:
-            response = await client.get(url)
+            response, _ = await get_with_validated_redirects(client, url)
             soup = BeautifulSoup(response.text, "html.parser")
             title = soup.title.string.strip() if soup.title and soup.title.string else ""
             for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):

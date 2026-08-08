@@ -1,5 +1,11 @@
 """Shared isolated database, API client, and scoring-signal fixtures."""
+import os
 from types import SimpleNamespace
+
+# The production settings intentionally reject their shipped key when DEBUG is
+# false.  Tests use an explicit, process-local non-production key before any
+# backend module imports settings.
+os.environ["SECRET_KEY"] = "test-only-secret-key-not-for-production"
 
 import pytest
 from fastapi.testclient import TestClient
@@ -11,6 +17,18 @@ from backend.database import get_db
 from backend.main import app
 from backend.models.job_scan import Base
 from backend.services.trust_scorer import SignalInput
+
+
+@pytest.fixture(autouse=True)
+def deterministic_public_dns(monkeypatch):
+    """Keep mocked HTTP unit tests offline while using the SSRF guard."""
+    from backend.security import ssrf_guard
+
+    monkeypatch.setattr(
+        ssrf_guard,
+        "resolve_hostname",
+        lambda hostname: {"93.184.216.34"},
+    )
 
 
 @pytest.fixture

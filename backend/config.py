@@ -1,5 +1,14 @@
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings
 from functools import lru_cache
+
+
+DEFAULT_SECRET_KEY = "your-secret-key-change-in-production"
+INSECURE_SECRET_KEYS = {
+    "",
+    DEFAULT_SECRET_KEY,
+    "change-this-to-a-secure-random-string-in-production",
+}
 
 
 class Settings(BaseSettings):
@@ -7,7 +16,14 @@ class Settings(BaseSettings):
     APP_NAME: str = "TrustHire"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
-    SECRET_KEY: str = "your-secret-key-change-in-production"
+    SECRET_KEY: str = DEFAULT_SECRET_KEY
+    ALLOWED_ORIGINS: list[str] = Field(default_factory=lambda: [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+    ])
 
     # Database
     DATABASE_URL: str = "postgresql://trusthire_user:trusthire_pass@localhost/trusthire"
@@ -62,6 +78,14 @@ class Settings(BaseSettings):
     SENTRY_DSN: str = ""
 
     model_config = {"env_file": ".env", "extra": "ignore"}
+
+    @model_validator(mode="after")
+    def require_production_secret_key(self):
+        if not self.DEBUG and self.SECRET_KEY in INSECURE_SECRET_KEYS:
+            raise ValueError(
+                "SECRET_KEY must be set to a non-default value when DEBUG is false"
+            )
+        return self
 
 
 @lru_cache()

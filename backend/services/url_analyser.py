@@ -22,6 +22,8 @@ import numpy as np
 from datetime import datetime, timezone
 from urllib.parse import urlparse, parse_qs
 from typing import Optional, Any
+
+from backend.security.ssrf_guard import UnsafeURL, get_with_validated_redirects, validate_public_url
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from collections import Counter
@@ -426,9 +428,9 @@ async def _fetch_page_content(url: str) -> PageContentSignals:
             "Accept-Language": "en-US,en;q=0.9",
         }
         async with httpx.AsyncClient(
-            timeout=10.0, follow_redirects=True, verify=False
+            timeout=10.0, follow_redirects=False, verify=False
         ) as client:
-            response = await client.get(url, headers=headers)
+            response, _ = await get_with_validated_redirects(client, url, headers=headers)
             if response.status_code != 200:
                 return signals
 
@@ -574,13 +576,11 @@ async def check_virustotal(url: str) -> Optional[int]:
 
 async def follow_redirects(url: str) -> tuple:
     chain = [url]
-    async with httpx.AsyncClient(follow_redirects=True, timeout=10.0) as client:
+    async with httpx.AsyncClient(follow_redirects=False, timeout=10.0) as client:
         try:
-            response = await client.get(url)
-            for r in response.history:
-                chain.append(str(r.url))
-            chain.append(str(response.url))
-        except Exception:
+            response, chain = await get_with_validated_redirects(client, url)
+            return str(getattr(response, "url", chain[-1])), chain
+        except (UnsafeURL, httpx.HTTPError):
             pass
     return chain[-1], chain
 
@@ -842,6 +842,7 @@ async def analyse_url(url: str) -> URLAnalysisResult:
     ssl_valid = False
     if is_https:
         try:
+            validate_public_url(url)
             context = ssl.create_default_context()
             with socket.create_connection((domain, 443), timeout=5) as sock:
                 with context.wrap_socket(sock, server_hostname=domain):
