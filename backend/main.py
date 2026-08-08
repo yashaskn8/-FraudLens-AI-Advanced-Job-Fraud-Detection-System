@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.config import settings
 from backend.database import init_db
 from backend.middleware import RequestLoggingMiddleware
+from backend.rate_limiter import limiter
 from backend.routers import scan, reports, auth, analytics
 
 # Configure logging
@@ -178,6 +179,11 @@ app = FastAPI(
     redoc_url="/redoc",
     lifespan=lifespan,
 )
+app.state.limiter = limiter
+
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS — allow frontend origins
 app.add_middleware(

@@ -8,7 +8,7 @@ import asyncio
 import time
 from datetime import datetime
 from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 import tldextract
 from backend.database import get_db
@@ -22,6 +22,8 @@ from backend.services.url_cache import get_cached_result, cache_result, get_cach
 from backend.services.job_relevance_detector import detect_job_relevance
 from backend.models.job_scan import JobScan
 from backend.config import settings
+from backend.rate_limiter import limiter
+from backend.routers.auth import get_current_user, get_optional_current_user
 
 router = APIRouter(prefix="/api/v1", tags=["scan"])
 
@@ -134,7 +136,13 @@ def extract_all_entities_from_request(request: ScanRequest) -> dict:
 
 
 @router.post("/scan", response_model=ScanResponse)
-async def scan_job(request: ScanRequest, db: Session = Depends(get_db)):
+@limiter.limit(settings.RATE_LIMIT_FREE)
+async def scan_job(
+    request: Request,
+    scan_request: ScanRequest,
+    db: Session = Depends(get_db),
+    current_user: dict | None = Depends(get_optional_current_user),
+):
     """
     Main scan endpoint. Accepts a job URL and/or description.
     Runs the Job Relevance Gate first, then all analysis signals,
@@ -143,8 +151,8 @@ async def scan_job(request: ScanRequest, db: Session = Depends(get_db)):
 
     # ── STEP 0: Job Relevance Gate — must pass before any analysis runs ──
     relevance = await detect_job_relevance(
-        url=request.url,
-        description=request.description
+        url=scan_request.url,
+        description=scan_request.description
     )
 
     if not relevance.is_job_content:
@@ -177,7 +185,7 @@ async def scan_job(request: ScanRequest, db: Session = Depends(get_db)):
     # ── STEP 1: Extract all entities from the request ─────────────────────
     # Critical fix: entities are always extracted before any analysis service
     scan_id = str(uuid.uuid4())
-    entities = extract_all_entities_from_request(request)
+    entities = extract_all_entities_from_request(scan_request)
 
     company_domain  = entities["company_domain"]
     company_name    = entities["company_name"]
@@ -187,19 +195,19 @@ async def scan_job(request: ScanRequest, db: Session = Depends(get_db)):
     # Check URL cache first
     url_result = None
     cached_url = None
-    if request.url:
-        cached_url = get_cached_result(request.url)
+    if scan_request.url:
+        cached_url = get_cached_result(scan_request.url)
 
     # Run all analyses concurrently
     url_task = None
-    if request.url and not cached_url:
-        url_task = analyse_url(request.url)
-    nlp_task = classify_description(request.description or "")
+    if scan_request.url and not cached_url:
+        url_task = analyse_url(scan_request.url)
+    nlp_task = classify_description(scan_request.description or "")
     company_task = verify_company_global(
         company_name=company_name,
         company_domain=company_domain,
-        url=request.url or "",
-        description=request.description or "",
+        url=scan_request.url or "",
+        description=scan_request.description or "",
     )
 
     tasks = [t for t in [url_task, nlp_task, company_task] if t is not None]
@@ -207,13 +215,13 @@ async def scan_job(request: ScanRequest, db: Session = Depends(get_db)):
 
     # Map results back, handling possible None and exceptions
     idx = 0
-    if request.url and not cached_url:
+    if scan_request.url and not cached_url:
         url_result = results[idx] if not isinstance(results[idx], Exception) else None
         idx += 1
         # Cache the fresh result
         if url_result is not None:
             cache_result(
-                request.url, url_result.__dict__,
+                scan_request.url, url_result.__dict__,
                 url_result.url_trust_score,
                 getattr(url_result, 'is_established_domain', False)
             )
@@ -234,17 +242,18 @@ async def scan_job(request: ScanRequest, db: Session = Depends(get_db)):
 
     # Generate LLM explanation
     explanation = await generate_explanation(
-        trust_result, request.job_title or "", company_name
+        trust_result, scan_request.job_title or "", company_name
     )
 
     # Save to database
     try:
         scan = JobScan(
             id=scan_id,
-            url=request.url or "",
-            job_title=request.job_title or "",
+            user_id=current_user["user_id"] if current_user else None,
+            url=scan_request.url or "",
+            job_title=scan_request.job_title or "",
             company_name=company_name,
-            description=(request.description or "")[:5000],
+            description=(scan_request.description or "")[:5000],
             trust_score=trust_result.trust_score,
             verdict=trust_result.verdict,
             flags=trust_result.all_flags,
@@ -377,9 +386,19 @@ async def get_scan_result(scan_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/history")
-async def get_scan_history(limit: int = 20, db: Session = Depends(get_db)):
-    """Get recent scan history."""
-    scans = db.query(JobScan).order_by(JobScan.created_at.desc()).limit(limit).all()
+async def get_scan_history(
+    limit: int = 20,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Get the authenticated user's recent scan history."""
+    scans = (
+        db.query(JobScan)
+        .filter(JobScan.user_id == current_user["user_id"])
+        .order_by(JobScan.created_at.desc())
+        .limit(limit)
+        .all()
+    )
     return {
         "scans": [
             {
@@ -518,4 +537,3 @@ async def check_score_flag_consistency(request: ScanRequest):
         "is_consistent": is_consistent,
         "consistency_issues": consistency_issues,
     }
-

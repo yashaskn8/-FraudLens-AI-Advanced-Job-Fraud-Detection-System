@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, HttpUrl, field_validator
 from typing import Optional, Dict, List, Any
 
 
@@ -8,6 +8,17 @@ class ScanRequest(BaseModel):
     job_title: Optional[str] = None
     company_name: Optional[str] = None
     recruiter_email: Optional[str] = None
+
+    @field_validator("url")
+    @classmethod
+    def validate_url(cls, value: Optional[str]) -> Optional[str]:
+        """Require an absolute HTTP(S) URL while preserving a string for services."""
+        if value is None:
+            return None
+        try:
+            return str(HttpUrl(value))
+        except ValueError as exc:
+            raise ValueError("url must be a valid absolute HTTP(S) URL") from exc
 
 
 class ScanResponse(BaseModel):

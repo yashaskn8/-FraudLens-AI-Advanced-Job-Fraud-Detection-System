@@ -303,7 +303,7 @@ Scan any job listing on LinkedIn, Naukri, or Indeed in one click:
 |:------:|:---------|:----:|:------------|
 | `POST` | `/api/v1/scan` | Optional | Submit a job posting URL and/or description for trust evaluation. |
 | `GET` | `/api/v1/scan/{id}` | No | Retrieve full signal breakdown and verdict for a scan by ID. |
-| `GET` | `/api/v1/history` | Optional | Get paginated history of recent scans. |
+| `GET` | `/api/v1/history` | Required | Get the authenticated user's paginated scan history. |
 | `POST` | `/api/v1/report` | Optional | Submit a community fraud report for a job posting. |
 | `GET` | `/api/v1/reports` | No | Retrieve all community-submitted fraud reports. |
 | `GET` | `/api/v1/analytics/dashboard` | No | Fetch aggregate analytics (scan counts, verdict distributions, top flags). |

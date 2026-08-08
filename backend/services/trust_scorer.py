@@ -364,12 +364,16 @@ def compute_trust_score(
     signal_scores_display = {}
     signal_weights_display = {}
     configured_weights = {}
+    effective_weight_total = sum(redistributed_weights.values())
 
     for s in signals:
         display_score = round(s.raw_score * 100) if s.is_reliable else None
         signal_scores_display[s.name] = display_score
         signal_weights_display[s.name] = (
-            round(redistributed_weights.get(s.name, 0) * 100, 1)
+            round(
+                (redistributed_weights.get(s.name, 0) / effective_weight_total) * 100,
+                1,
+            )
             if s.is_reliable else 0
         )
         configured_weights[s.name] = round(s.weight * 100, 1)
