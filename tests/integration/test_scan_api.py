@@ -120,6 +120,7 @@ def test_get_scan_by_id_returns_saved_scan_and_missing_id_is_404(client, db_sess
     assert missing.json()["detail"] == "Scan not found"
 
 
+@pytest.mark.timeout(30)
 def test_scan_rate_limit_enforces_free_tier(client, monkeypatch):
     _patch_scan_pipeline(monkeypatch)
     limiter.reset()

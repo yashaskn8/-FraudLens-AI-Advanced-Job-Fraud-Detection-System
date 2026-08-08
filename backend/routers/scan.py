@@ -17,10 +17,15 @@ from backend.services.url_analyser import analyse_url
 from backend.services.nlp_classifier import classify_description
 from backend.services.company_verifier import verify_company_global
 from backend.services.trust_scorer import compute_trust_score
-from backend.services.explainer import generate_explanation
+from backend.services.explainer import (
+    generate_agentic_explanation,
+    generate_explanation,
+    is_openai_agent_available,
+)
+from backend.services.investigator_agent import investigate_suspicious
 from backend.services.url_cache import get_cached_result, cache_result, get_cache_stats
 from backend.services.job_relevance_detector import detect_job_relevance
-from backend.models.job_scan import JobScan
+from backend.models.job_scan import AgentTrace, JobScan
 from backend.config import settings
 from backend.rate_limiter import limiter
 from backend.routers.auth import get_current_user, get_optional_current_user
@@ -240,10 +245,30 @@ async def scan_job(
     # Compute final trust score with dynamic weight redistribution
     trust_result = compute_trust_score(url_result, nlp_result, company_result)
 
-    # Generate LLM explanation
-    explanation = await generate_explanation(
-        trust_result, scan_request.job_title or "", company_name
-    )
+    # The deterministic score above remains authoritative. Agent evidence is additive only.
+    investigator_result = None
+    agent_explanation = None
+    if is_openai_agent_available():
+        investigator_result = await investigate_suspicious(
+            trust_result,
+            company_name=company_name,
+            company_domain=company_domain,
+            db=db,
+        )
+        agent_explanation = await generate_agentic_explanation(
+            trust_result,
+            scan_request.job_title or "",
+            company_name,
+            company_domain,
+            db,
+            investigator_result.additional_evidence if investigator_result else None,
+        )
+        explanation = agent_explanation.explanation
+    else:
+        # Preserve the established Ollama/missing-key static path unchanged.
+        explanation = await generate_explanation(
+            trust_result, scan_request.job_title or "", company_name
+        )
 
     # Save to database
     try:
@@ -262,6 +287,19 @@ async def scan_job(
             created_at=datetime.utcnow(),
         )
         db.add(scan)
+        if agent_explanation and agent_explanation.used_agent:
+            investigator_tools = investigator_result.tools_called if investigator_result else []
+            investigator_steps = investigator_result.reasoning_steps if investigator_result else []
+            tools_called = investigator_tools + agent_explanation.tools_called
+            db.add(AgentTrace(
+                id=str(uuid.uuid4()),
+                scan_id=scan_id,
+                tools_called=tools_called,
+                tool_results=[call.get("result", {}) for call in tools_called],
+                reasoning_steps=investigator_steps + agent_explanation.reasoning_steps,
+                critic_passed=agent_explanation.critic_passed,
+                created_at=datetime.utcnow(),
+            ))
         db.commit()
     except Exception as e:
         print(f"Database save failed: {e}")
@@ -296,6 +334,12 @@ async def scan_job(
             "combined_nlp_score": nlp_result.combined_nlp_score,
         } if nlp_result else None,
         company_details=company_result.__dict__ if company_result else None,
+        additional_evidence=(
+            investigator_result.additional_evidence if investigator_result else None
+        ),
+        investigator_confidence=(
+            investigator_result.investigator_confidence if investigator_result else None
+        ),
         scanned_at=datetime.utcnow().isoformat(),
     )
 
@@ -359,7 +403,7 @@ async def get_scan_result(scan_id: str, db: Session = Depends(get_db)):
     if not scan:
         raise HTTPException(status_code=404, detail="Scan not found")
 
-    return {
+    result = {
         "scan_id": scan.id,
         "trust_score": scan.trust_score,
         "verdict": scan.verdict,
@@ -383,6 +427,16 @@ async def get_scan_result(scan_id: str, db: Session = Depends(get_db)):
         "company_details": None,
         "scanned_at": scan.created_at.isoformat() if scan.created_at else "",
     }
+    trace = db.query(AgentTrace).filter(AgentTrace.scan_id == scan_id).first()
+    if trace:
+        result["agent_trace"] = {
+            "tools_called": trace.tools_called or [],
+            "tool_results": trace.tool_results or [],
+            "reasoning_steps": trace.reasoning_steps or [],
+            "critic_passed": trace.critic_passed,
+            "created_at": trace.created_at.isoformat() if trace.created_at else "",
+        }
+    return result
 
 
 @router.get("/history")

@@ -42,6 +42,8 @@ class ScanResponse(BaseModel):
     url_details: Optional[Dict[str, Any]] = None
     nlp_details: Optional[Dict[str, Any]] = None
     company_details: Optional[Dict[str, Any]] = None
+    additional_evidence: Optional[List[Dict[str, Any]]] = None
+    investigator_confidence: Optional[float] = None
     scanned_at: str
 
     model_config = {"from_attributes": True}

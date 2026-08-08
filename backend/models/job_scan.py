@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Float, DateTime, JSON, Text
+from sqlalchemy import Boolean, Column, String, Integer, Float, DateTime, JSON, Text
 from sqlalchemy.orm import declarative_base
 from datetime import datetime
 
@@ -32,4 +32,17 @@ class FraudReport(Base):
     reporter_ip = Column(String, nullable=True)
     reason = Column(Text, nullable=True)
     confirmed = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class AgentTrace(Base):
+    """Auditable tool/critic events associated with one completed scan."""
+    __tablename__ = "agent_traces"
+
+    id = Column(String, primary_key=True)
+    scan_id = Column(String, nullable=False, unique=True, index=True)
+    tools_called = Column(JSON, default=list)
+    tool_results = Column(JSON, default=list)
+    reasoning_steps = Column(JSON, default=list)
+    critic_passed = Column(Boolean, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
