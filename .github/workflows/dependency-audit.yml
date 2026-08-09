@@ -13,8 +13,6 @@ jobs:
   pip-audit:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    outputs:
-      matrix: ${{ steps.audit.outputs.matrix }}
 
     steps:
       - name: Check out repository
@@ -30,68 +28,13 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt pip-audit==2.10.1
 
-      - id: audit
-        name: Run pip-audit
-        shell: bash
-        run: |
-          set +e
-          pip-audit -r requirements.txt --format json --output audit.json
-          audit_status=$?
-          set -e
-          python - "$audit_status" <<'PY'
-          import json
-          import os
-          import sys
-          from pathlib import Path
+      - name: Audit dependencies
+        run: pip-audit -r requirements.txt --format json --output pip-audit-report.json
 
-          audit_status = int(sys.argv[1])
-          report_path = Path("audit.json")
-          findings = []
-          if report_path.exists():
-              report = json.loads(report_path.read_text())
-              dependencies = report.get("dependencies", report) if isinstance(report, dict) else report
-              for dependency in dependencies:
-                  for vulnerability in dependency.get("vulns", []):
-                      package = f"{dependency['name']}=={dependency['version']}"
-                      vulnerability_id = vulnerability["id"]
-                      aliases = ", ".join(vulnerability.get("aliases", [])) or "none"
-                      fixes = ", ".join(vulnerability.get("fix_versions", [])) or "none published"
-                      findings.append(
-                          f"{package}: {vulnerability_id} (aliases: {aliases}; fixes: {fixes})"
-                      )
-
-          if not findings:
-              if audit_status == 0:
-                  findings = ["No known vulnerabilities found"]
-              else:
-                  findings = ["pip-audit failed before producing a vulnerability report"]
-
-          matrix = {
-              "include": [
-                  {"finding": finding[:240], "audit_status": audit_status}
-                  for finding in findings
-              ]
-          }
-
-          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
-              print("matrix<<EOF", file=output)
-              print(json.dumps(matrix), file=output)
-              print("EOF", file=output)
-          PY
-
-  enforce-audit:
-    needs: pip-audit
-    if: always()
-    name: "pip-audit: ${{ matrix.finding }}"
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.pip-audit.outputs.matrix) }}
-    steps:
-      - name: Enforce pip-audit result
-        env:
-          AUDIT_STATUS: ${{ matrix.audit_status }}
-          FINDINGS: ${{ matrix.finding }}
-        run: |
-          echo "$FINDINGS"
-          test "$AUDIT_STATUS" -eq 0
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pip-audit-report
+          path: pip-audit-report.json
+          if-no-files-found: warn
