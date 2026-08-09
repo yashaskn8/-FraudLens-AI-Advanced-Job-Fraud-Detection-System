@@ -14,8 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
-      audit_status: ${{ steps.audit.outputs.audit_status }}
-      findings: ${{ steps.audit.outputs.findings }}
+      matrix: ${{ steps.audit.outputs.matrix }}
 
     steps:
       - name: Check out repository
@@ -61,28 +60,38 @@ jobs:
                           f"{package}: {vulnerability_id} (aliases: {aliases}; fixes: {fixes})"
                       )
 
-          if findings:
-              display = " | ".join(findings)
-          elif audit_status == 0:
-              display = "No known vulnerabilities found"
-          else:
-              display = "pip-audit failed before producing a vulnerability report"
+          if not findings:
+              if audit_status == 0:
+                  findings = ["No known vulnerabilities found"]
+              else:
+                  findings = ["pip-audit failed before producing a vulnerability report"]
+
+          matrix = {
+              "include": [
+                  {"finding": finding[:240], "audit_status": audit_status}
+                  for finding in findings
+              ]
+          }
 
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
-              print(f"audit_status={audit_status}", file=output)
-              print(f"findings={display[:220]}", file=output)
+              print("matrix<<EOF", file=output)
+              print(json.dumps(matrix), file=output)
+              print("EOF", file=output)
           PY
 
   enforce-audit:
     needs: pip-audit
     if: always()
-    name: "pip-audit: ${{ needs.pip-audit.outputs.findings }}"
+    name: "pip-audit: ${{ matrix.finding }}"
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.pip-audit.outputs.matrix) }}
     steps:
       - name: Enforce pip-audit result
         env:
-          AUDIT_STATUS: ${{ needs.pip-audit.outputs.audit_status }}
-          FINDINGS: ${{ needs.pip-audit.outputs.findings }}
+          AUDIT_STATUS: ${{ matrix.audit_status }}
+          FINDINGS: ${{ matrix.finding }}
         run: |
           echo "$FINDINGS"
           test "$AUDIT_STATUS" -eq 0
