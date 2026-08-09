@@ -13,6 +13,9 @@ jobs:
   pip-audit:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      audit_status: ${{ steps.audit.outputs.audit_status }}
+      findings: ${{ steps.audit.outputs.findings }}
 
     steps:
       - name: Check out repository
@@ -23,42 +26,63 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install pinned dependencies and audit vulnerabilities
+      - name: Install pinned dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt pip-audit==2.10.1
+
+      - id: audit
+        name: Run pip-audit
+        shell: bash
+        run: |
           set +e
           pip-audit -r requirements.txt --format json --output audit.json
           audit_status=$?
           set -e
-          python - <<'PY'
+          python - "$audit_status" <<'PY'
           import json
           import os
+          import sys
           from pathlib import Path
 
+          audit_status = int(sys.argv[1])
           report_path = Path("audit.json")
-          summary_path = Path(os.environ["GITHUB_STEP_SUMMARY"])
-          if not report_path.exists():
-              print("::error title=pip-audit::pip-audit did not produce a report")
-          else:
+          findings = []
+          if report_path.exists():
               report = json.loads(report_path.read_text())
-              findings = [
-                  (dependency, vulnerability)
-                  for dependency in report
-                  for vulnerability in dependency.get("vulns", [])
-              ]
-              if not findings:
-                  print("No known vulnerabilities found.")
-              else:
-                  with summary_path.open("a", encoding="utf-8") as summary_file:
-                      print("## pip-audit findings", file=summary_file)
-                      for dependency, vulnerability in findings:
-                          package = f"{dependency['name']}=={dependency['version']}"
-                          vulnerability_id = vulnerability["id"]
-                          aliases = ", ".join(vulnerability.get("aliases", [])) or "none"
-                          fixes = ", ".join(vulnerability.get("fix_versions", [])) or "none published"
-                          finding_summary = f"{package}: {vulnerability_id}; aliases: {aliases}; fixes: {fixes}"
-                          print(f"::error title=pip-audit::{finding_summary}")
-                          print(f"- {finding_summary}", file=summary_file)
+              dependencies = report.get("dependencies", report) if isinstance(report, dict) else report
+              for dependency in dependencies:
+                  for vulnerability in dependency.get("vulns", []):
+                      package = f"{dependency['name']}=={dependency['version']}"
+                      vulnerability_id = vulnerability["id"]
+                      aliases = ", ".join(vulnerability.get("aliases", [])) or "none"
+                      fixes = ", ".join(vulnerability.get("fix_versions", [])) or "none published"
+                      findings.append(
+                          f"{package}: {vulnerability_id} (aliases: {aliases}; fixes: {fixes})"
+                      )
+
+          if findings:
+              display = " | ".join(findings)
+          elif audit_status == 0:
+              display = "No known vulnerabilities found"
+          else:
+              display = "pip-audit failed before producing a vulnerability report"
+
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              print(f"audit_status={audit_status}", file=output)
+              print(f"findings={display[:220]}", file=output)
           PY
-          exit "$audit_status"
+
+  enforce-audit:
+    needs: pip-audit
+    if: always()
+    name: "pip-audit: ${{ needs.pip-audit.outputs.findings }}"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce pip-audit result
+        env:
+          AUDIT_STATUS: ${{ needs.pip-audit.outputs.audit_status }}
+          FINDINGS: ${{ needs.pip-audit.outputs.findings }}
+        run: |
+          echo "$FINDINGS"
+          test "$AUDIT_STATUS" -eq 0
